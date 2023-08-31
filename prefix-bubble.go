@@ -92,7 +92,7 @@ func checkPrefix() tea.Msg {
     if err != nil {
         panic(err)
     }
-    data: = xmlquery.FindOne(doc, "//xml/publisher")
+    data := xmlquery.FindOne(doc, "//xml/publisher")
 
     return xmlMsg(data.SelectElement("publisher_name").InnerText())
 
