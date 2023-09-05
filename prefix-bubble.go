@@ -1,99 +1,155 @@
 package main
 
 import (
-    "fmt"
-    "log"
-    "net/http"
-    "io/ioutil"
-    "strings"
+	"fmt"
+	"os"
+	"strings"
 
-    "github.com/antchfx/xmlquery"
-    tea "github.com/charmbracelet/bubbletea"
+	"github.com/antchfx/xmlquery"
+	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/textinput"
+	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 )
 
-const url = "https://doi.crossref.org/getPrefixPublisher/?prefix=10.1215" //+prefix
-
-type model struct {
-    xml string
-    err error
-}
-
-type xmlMsg string
-
-type errMsg struct {
-    error
-}
-
-func(e errMsg) Error() string {
-    return e.error.Error()
-}
-
 func main() {
-    p: = tea.NewProgram(model {})
-    if _,
-    err: = p.Run();err != nil {
-        log.Fatal(err)
-    }
+	t := textinput.New()
+	t.Focus()
+
+	s := spinner.New()
+	s.Spinner = spinner.Dot
+	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+
+	initialModel := Model{
+		textInput: t,
+		spinner:   s,
+		typing:    true,
+	}
+	err := tea.NewProgram(initialModel, tea.WithAltScreen()).Start()
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }
 
-func(m model) Init() tea.Cmd {
-    return checkPrefix
+type Model struct {
+	textInput textinput.Model
+	spinner   spinner.Model
+	typing    bool
+	loading   bool
+	err       error
+	publisher string
 }
 
-func(m model) Update(msg tea.Msg)(tea.Model, tea.Cmd) {
-    switch msg: = msg.(type) {
-        case tea.KeyMsg:
-            switch msg.String() {
-                case "q", "ctrl+c", "esc":
-                    return m, tea.Quit
-                default:
-                    return m, nil
-            }
-
-        case xmlMsg:
-            m.xml = string(msg)
-            return m, tea.Quit
-
-        case errMsg:
-            m.err = msg
-            return m, nil
-
-        default:
-            return m, nil
-    }
+type GotPublisher struct {
+	Err       error
+	Publisher string
 }
 
-func(m model) View() string {
-    s: = fmt.Sprintf("Checking CrossRef...\n\n")
-    if m.err != nil {
-        s += fmt.Sprintf("something went wrong: %s", m.err)
-    } else if m.xml != "" {
-        s += fmt.Sprintf("%s", m.xml)
-    }
-    return s + "\n"
+func (m Model) fetchPublisher(prefix string) tea.Cmd {
+	return func() tea.Msg {
+		crossrefApi := fmt.Sprintf("https://doi.crossref.org/getPrefixPublisher/?prefix=%s", prefix)
+
+		doc, err := xmlquery.LoadURL(crossrefApi)
+		if err != nil {
+			return GotPublisher{Err: err}
+		}
+
+		data := xmlquery.FindOne(doc, "//xml/publisher")
+
+		publisher := data.SelectElement("publisher_name").InnerText()
+
+		return GotPublisher{Publisher: publisher}
+	}
 }
 
-func checkPrefix() tea.Msg {
-    res, err: = http.Get(url)
-    if err != nil {
-        return errMsg {
-            err
-        }
-    }
+func (m Model) Init() tea.Cmd {
+	return textinput.Blink
+}
 
-    body, err: = ioutil.ReadAll(res.Body)
-    if err != nil {
-        return errMsg {
-            err
-        }
-    }
-    string_body: = string(body)
-    doc, err: = xmlquery.Parse(strings.NewReader(string_body))
-    if err != nil {
-        panic(err)
-    }
-    data := xmlquery.FindOne(doc, "//xml/publisher")
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
-    return xmlMsg(data.SelectElement("publisher_name").InnerText())
+	switch msg := msg.(type) {
+
+	case tea.KeyMsg:
+
+		switch msg.String() {
+
+		case "ctrl+c":
+
+			return m, tea.Quit
+
+		case "enter":
+
+			if m.typing {
+
+				prefix := strings.TrimSpace(m.textInput.Value())
+
+				if prefix != "" { //guard clause in case of blank string
+
+					m.typing = false
+					m.loading = true
+
+					return m, tea.Batch(
+						spinner.Tick,
+						m.fetchPublisher(prefix),
+					)
+				}
+			}
+
+		case "esc":
+
+			if !m.typing && !m.loading {
+				m.typing = true
+				m.err = nil
+				return m, nil
+			}
+		}
+
+	case GotPublisher:
+
+		m.loading = false
+
+		if err := msg.Err; err != nil {
+			m.err = err
+			return m, nil
+		}
+
+		m.publisher = msg.Publisher
+
+	default:
+		return m, nil
+
+	}
+
+	if m.typing {
+		var cmd tea.Cmd
+		m.textInput, cmd = m.textInput.Update(msg)
+		return m, cmd
+	}
+
+	if m.loading {
+		var cmd tea.Cmd
+		m.spinner, cmd = m.spinner.Update(msg)
+		return m, cmd
+	}
+	return m, nil
+}
+
+func (m Model) View() string {
+
+	if m.typing {
+		return fmt.Sprintf("Enter a DOI prefix:\n%s", m.textInput.View())
+	}
+
+	if m.loading {
+		return fmt.Sprintf("%s fetching prefix... please wait.", m.spinner.View())
+	}
+
+	if err := m.err; err != nil {
+		return fmt.Sprintf("Could not fetch prefix: %v", err)
+	}
+
+	return fmt.Sprintf("%s", m.publisher)
 
 }
