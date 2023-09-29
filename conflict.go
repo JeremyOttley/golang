@@ -43,7 +43,7 @@ func (c Conflict) String() string {
 
 func main() {
 
-	data := `<conflict id="6457489" created="2022-03-28 16:23:58.0" causeID="1525000047" otherIDs="1245940516,">
+data := `<conflict id="6457489" created="2022-03-28 16:23:58.0" causeID="1525000047" otherIDs="1245940516,">
   <doi_data>
     <doi>10.3098/ah.2010.84.4.423</doi>
     <metadata>
