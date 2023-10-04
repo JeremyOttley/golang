@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"log"
 	
 	"github.com/erikgeiser/promptkit/textinput"
 )
@@ -15,7 +16,7 @@ func main() {
 	userInput, err := input.RunPrompt()	
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)
-		
+		log.Fatal(err)
 		os.Exit(1)
 	}
 	
