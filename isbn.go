@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"log"
 
 	"golang.design/x/clipboard"
 )
@@ -17,7 +18,7 @@ func main() {
 
 	err := clipboard.Init()
 	if err != nil {
-		panic(err)
+        	log.Fatal(err)
 	}
 
 	r, _ := regexp.Compile("-")
