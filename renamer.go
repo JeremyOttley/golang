@@ -16,8 +16,7 @@ func main() {
     rand.Seed(time.Now().UnixNano())
     files, err := ioutil.ReadDir(".")
     if err != nil {
-        fmt.Println("Error reading the current directory:", err)
-        return
+        return nil, fmt.Errorf("Error reading the current directory: %w", err)
     }
 
     for _, file := range files {
@@ -31,7 +30,7 @@ func main() {
             newName := generateRandomString() + ext
             err := os.Rename(file.Name(), newName)
             if err != nil {
-                fmt.Println("Error renaming file:", err)
+                return nil, fmt.Errorf("Error renaming file: %w", err)
             } else {
                 fmt.Printf("Renamed %s to %s\n", file.Name(), newName)
             }
